@@ -1,13 +1,16 @@
-#' Implement SHARP test once on a dose-response curve
+#' Implement SHARP test repeatedly on a dose-response curve
+#'
+#' The SHARP shape detection test relies on a underlying random generation process, which may lead to ambiguous test results. To examin its uncertainty and obtain a more robust conclusion, we may with to repet the test on the same data.
 #'
 #' @param df Dose-response curve data in a table format. Dose and responses should be two separate columns with numeric values.
+#' @param nRep Number of repetitions of SHAPR test. Integer.
 #' @param mixed Logical indicator (TRUE for FALSE) for whether or not to use the mixed-model-based test.
 #' @param xName The column name for dose. Character string.
 #' @param yName The column name for response. Character string.
 #' @param rName The column name for random effect. Only used if mixed = TRUE. Character string.git a
 #' @param niter An integer for the number of iterations in SHARP test procedure
 #'
-#' @return A vector of four p values after Holm adjustment, indicating the significance of four different shapes types.
+#' @return A dataframe of test results from all repititions. Each row is one single test with four p values after Holm adjustment.
 #'
 #' @examples
 #' # Simulate dose-response data
@@ -19,34 +22,17 @@
 #' curve$rep <- rep(1:3, each = 16)
 #'
 #' # Fixed-model based test
-#' SHARPtest(curve, xName = "x", yName = "y")
+#' RepeatSHARP(curve, nRep = 10, xName = "x", yName = "y")
 #'
 #' # Mixed-model based test
 #' SHARPtest(curve, mixed = T, xName = "x", yName = "y", rName = "rep")
 
-SHARPtest <- function(df, mixed = F, xName, yName, rName, niter=1000){
-  # mixed model based
-  df <- as.data.frame(df)
-  if(mixed == T){
-    shape_test <- SRMERS::MERS(y=yName, xMain=xName, xRand=rName,
-                   dataset = df, nIter=niter)
-  }
-  # not mixed model based
-  else{
-    shape_test <-SRMERS::FERS(y=yName, xMain=xName,dataset = df, nIter=niter)
-    }
 
-  # Holm adjustment
-  test_p <- c(increase = shape_test$PValueIncr,
-              decrease = shape_test$PValueDecr,
-              convex = shape_test$PValueConv,
-              concave = shape_test$PValueConc)
-  sort_id <- order(test_p)
-  adj_p <- p.adjust(test_p[sort_id], method="holm")
-
-  return(adj_p)
+RepeatSHARP <- function(df, nRep, mixed=F, xName, yName, rName, niter=1000){
+  pval_list <- lapply(1:nRep,
+                      function(r){
+                        SHARPtest(df=df, mixed=mixed, xName=xName, yName=yName, niter=niter)
+                        })
+  pval_df <- bind_rows(pval_list, .id="Rep")
+  return(pval_df)
 }
-
-
-
-
