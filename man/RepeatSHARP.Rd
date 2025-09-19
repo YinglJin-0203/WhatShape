@@ -40,5 +40,5 @@ curve$rep <- rep(1:3, each = 16)
 RepeatSHARP(curve, nRep = 10, xName = "x", yName = "y")
 
 # Mixed-model based test
-SHARPtest(curve, mixed = T, xName = "x", yName = "y", rName = "rep")
+RepeatSHARP(curve, nRep = 10, mixed = T, xName = "x", yName = "y", rName = "rep")
 }

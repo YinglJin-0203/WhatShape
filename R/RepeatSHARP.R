@@ -2,6 +2,8 @@
 #'
 #' The SHARP shape detection test relies on a underlying random generation process, which may lead to ambiguous test results. To examin its uncertainty and obtain a more robust conclusion, we may with to repet the test on the same data.
 #'
+#' @importFrom dplyr bind_rows
+#'
 #' @param df Dose-response curve data in a table format. Dose and responses should be two separate columns with numeric values.
 #' @param nRep Number of repetitions of SHAPR test. Integer.
 #' @param mixed Logical indicator (TRUE for FALSE) for whether or not to use the mixed-model-based test.
@@ -25,7 +27,7 @@
 #' RepeatSHARP(curve, nRep = 10, xName = "x", yName = "y")
 #'
 #' # Mixed-model based test
-#' SHARPtest(curve, mixed = T, xName = "x", yName = "y", rName = "rep")
+#' RepeatSHARP(curve, nRep = 10, mixed = T, xName = "x", yName = "y", rName = "rep")
 
 
 RepeatSHARP <- function(df, nRep, mixed=F, xName, yName, rName, niter=1000){
