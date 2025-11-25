@@ -1,0 +1,141 @@
+---
+title: "Automatic Hormesis Detection with SHARP"
+author: "Ying Jin"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: true
+  pdf_document:
+    toc: true
+    toc_depth: '3'
+  word_document:
+    toc: true
+    toc_depth: '3'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(knitr.kable.NA = "")
+
+library(here)
+library(tidyverse)
+library(Kendall)
+library(PMCMRplus)
+library(scales)
+library(SRMERS)
+library(kableExtra)
+library(knitr)
+theme_set(theme_minimal())
+
+set.seed(42)
+
+source(here("R/SHARPtest.R"))
+source(here("R/RepeatSHARP.R"))
+source(here("R/SharpScatter.R"))
+```
+
+In this document, we will go through the process of Hormesis detection using SHARP. First we will use one pair of dose response from the Tox21 data to illustrate the SHARP test, then we will use a larger dataset to domonstrate the visualization process.
+
+# SHARP test
+
+We first load and examine the dataset: 
+
+```{r}
+# load data
+df <- read.csv(here("Data/CurveExp1.csv"))
+head(df)
+```
+
+The sample_id column indicates the chemical, and protocol_readout indicates the assay. concs and resps are dose an reponse, and batch is the index of duplicated experiments. 
+
+```{r}
+# dose-response curves
+df %>%
+  ggplot(aes(x=concs, y=resps, col=as.factor(batch)))+
+  geom_point(size = 0.5)+
+  geom_line()+
+  scale_x_log10(n.breaks=4)+
+  theme(legend.position = "bottom", strip.text = element_text(size=7))+
+  labs(x="Concentration (log10)", y = "Response", col="Batch", 
+       title = paste0("Dose-response curves"))
+```
+
+
+
+## SHARP shape detection
+
+The SHARPtest function can implement the shape detection test on one dose-response pair one time. While options exist to account for the batch effect using mixed model, we do not have sufficient data to fit a reliable mixed model. Therefore, we will use the Fixed-effect SHARP test:
+
+```{r, echo=TRUE, include=FALSE}
+test_once <- SHARPtest(df, mixed=F, xName="concs", yName="resps", niter=1000)
+print(test_once)
+```
+
+The output is a vector of four p values, one corresponding to each shape label. For our example dataset, none of the p value is significant, so the shape test result is inconclusive. 
+
+To account for the uncertainty introduced by the random generation procedure within SHARP, we often repeat the test to get a distribution of p values. This is done using the RepeatSHARP function:
+
+```{r, echo=TRUE, include=FALSE}
+test_repeat <- RepeatSHARP(df, nRep=20, mixed=F, xName="concs", yName="resps", niter=1000)
+```
+
+The p values from each repitition is stored in a data frame:
+
+```{r}
+head(test_repeat)
+```
+
+We take the median of p values to derive final conclusion:
+
+```{r}
+# convex
+apply(test_repeat[, 2:5], 2, median)
+```
+
+In this case, the repeated test result is consistent with one-time test. 
+
+# Visualization
+
+In practice we often need to run the shape detection test on many pairs of dose-response. The function SharpScatter creates a scatter plot visualization that allows us to examine the shape detection results and their uncertainty at the same time. Here we use a different dataset with multiple dose-response pairs as an example. Specifically, this data includes one chemical and 20 readouts: 
+
+```{r}
+df_all <- read.csv("Data/CurveExp2.csv")
+# chemicals
+unique(df_all$sample_id)
+# readouts
+unique(df_all$protocol_readout)
+```
+
+We then implement the SHARP test on each pair:
+
+```{r, echo=TRUE, include=FALSE}
+readouts <- unique(df_all$protocol_readout)
+RepPvalList<-list()
+  
+pb <- txtProgressBar(min=0, max=length(readouts), initial=0, style=3)
+  
+for(i in seq_along(readouts)){
+ 
+    pvals_i <- RepeatSHARP(df_all[df_all$protocol_readout==readouts[i], ], nRep=20, mixed = F,
+                           xName = "concs", yName = "resps", niter=1000)
+    RepPvalList[[readouts[i]]] <- pvals_i
+  
+    setTxtProgressBar(pb, i)
+} 
+
+close(pb)
+```
+
+Finally we generate the plot:
+
+```{r}
+RepPval <- bind_rows(RepPvalList, .id = "readout") %>%
+  group_by(readout) %>% 
+  summarise_at(vars(convex, increase, decrease, concave), median)
+
+SharpScatter(RepPval$increase, RepPval$decrease, RepPval$convex, RepPval$concave, color = RepPval$readout)
+
+```
