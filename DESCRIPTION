@@ -3,7 +3,8 @@ Title: Detect the shape of dose-response curves
 Version: 0.0.0.9000
 Authors@R: 
     person("Ying", "Jin", , "ying.jin@nih.gov", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+Description: The xxxx package provides functions for hormesis screening by classifying the shapes of dose-response curves based on semiparametric tests.
+             It also offers a scalable visualization scheme to present testing conclusions for large-scale dataset with a large number of dose-response curves. 
 License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
     license
 Encoding: UTF-8

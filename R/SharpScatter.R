@@ -13,12 +13,15 @@
 #'
 #' @param pinc,pdec,pconc,pconv SHARP test p-values corresponding to increasing, decreasing, concave and convex
 #' @param alpha significance threshold. alpha=NULL corresponding to no significance threshold
+#' @param scale if the axis should be scale so that the significant threshold is placed in the center
 #' @param label labels of the point to visualize. label=NULL means no labeling.
 #' @param size_point,size_label the size of points and label. size_lable is used when label is not NULL
 #' @param ... additional parameters passed to ggplot
 #'
 
-SharpScatter <- function(pinc, pdec, pconc, pconv, alpha = 0.05, label = NULL, size_point=2, size_label = 5,...){
+
+SharpScatter <- function(pinc, pdec, pconc, pconv, alpha = 0.05, scale = T,
+                         label = NULL, size_point=2, size_label = 5,...){
   # coordinates for points
   ycoord = 0*(pinc==pdec)+(1-pinc)*(pinc<pdec)+(pdec-1)*(pinc>pdec)
   xcoord = 0*(pconv==pconc)+(pconc<pconv)*(1-pconc)+(pconc>pconv)*(pconv-1)
@@ -41,12 +44,39 @@ SharpScatter <- function(pinc, pdec, pconc, pconv, alpha = 0.05, label = NULL, s
       geom_vline(xintercept = c(1-alpha, -1+alpha), linetype = "dashed", linewidth = 0.5)
   }
 
+  # scale significance threshold
+  if(scale){
+    NewScale <- function(x){
+      newx <- ifelse(abs(x)>(1-alpha), 1-((1-abs(x))/alpha)*0.5, abs(x)*0.5/(1-alpha))
+      newx = sign(x)*newx
+      return(newx)
+    }
+
+    # scaling functions
+    InverseNewScale <- function(y){
+      origy <- ifelse(abs(y) > 0.5, 1 - ((1 - abs(y)) * alpha / 0.5), abs(y) * (1-alpha) / 0.5)
+      origy = sign(y) * origy
+      return(origy)
+    }
+    # transformation object
+    NewTrans <- scales::trans_new(
+      name = "NewTrans",
+      transform = NewScale,
+      inverse = InverseNewScale
+    )
+    sharp_scatter <- sharp_scatter+
+      scale_x_continuous(trans = NewTrans, limits = c(-1, 1))+
+      scale_y_continuous(trans = NewTrans, limits = c(-1, 1))
+  }
+
+
   # point label
   if(!is.null(label)){
     sharp_scatter <- sharp_scatter+geom_text(aes(label=label), size = size_label)
   }
 
- return(sharp_scatter)
+
+  return(sharp_scatter)
 
 }
 
