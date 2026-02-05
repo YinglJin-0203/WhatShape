@@ -33,7 +33,7 @@ SharpScatter <- function(pinc, pdec, pconc, pconv, alpha = 0.05, scale = T,
     geom_vline(xintercept = 0, linewidth = 1) +  # center x-axis
     labs(x=" ", y=" ")+
     theme(panel.grid = element_blank(), axis.text = element_blank(), axis.ticks = element_blank())+
-    annotate("text", x = c(-0.9, 0.9), y = c(0,0), label = c("Convex", "Concave"), vjust = 1.1)+
+    annotate("text", x = c(-1, 1), y = c(0,0), label = c("Convex", "Concave"), vjust = 1.1)+
     annotate("text", y = c(-1, 1), x = c(0,0), label = c("Decrease", "Increase"), hjust = 1.1)+
     theme_minimal()
 

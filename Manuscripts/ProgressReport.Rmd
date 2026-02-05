@@ -1,0 +1,343 @@
+---
+title: "Repeated SHARP Shape Detection"
+author: "Ying Jin"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    number_section: true
+    toc: true
+    toc_depth: 3
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, dev = "jpeg", fig.path = "ReportFigs/")
+
+
+library(tidyverse)
+theme_set(theme_minimal())
+library(here)
+library(RColorBrewer)
+# Pick a Brewer palette
+my_cols <- c(brewer.pal(8, "Set2")[c(2,6,3,8)], "#D3D3D3")
+# Apply globally
+options(
+  ggplot2.discrete.colour = my_cols,
+  ggplot2.discrete.fill   = my_cols
+)
+
+source("../R/SharpScatter.R")
+
+sample_info <- read_tsv(here("Data/botanical_sample_info.tsv"))
+
+# fix duplicate sample name
+dup_chems <- sample_info %>% group_by(sample_name) %>% summarise(n= n()) %>% 
+  filter(n>1)
+sample_info <- sample_info %>% 
+  mutate(sample_name = ifelse(sample_name%in% dup_chems$sample_name, 
+                              paste0(sample_name, " (lot ", sample_lot, ")"),
+                              sample_name))
+
+# table(df_shape$shape2)
+ds_curves <- read_tsv("../Data/botanical_norm_resp.tsv")
+ds_curves <- ds_curves %>%
+  rename(readout=protocol_readout) %>%
+  mutate(readout=gsub("mixture-","", readout)) %>%
+  left_join(sample_info, by = "sample_id") %>%
+  mutate(concs=log(concs))
+```
+
+
+```{r, eval = FALSE}
+# load data and get final test results
+# if saved as multiple R data
+output_names <- list.files(here(""))
+shapes <- c("increase", "decrease", "convex", "concave")
+## containers
+final_pvals <- list()
+final_shape <- list()
+for(k in seq_along(output_names)){
+  load(here(paste0("Output/", output_names[k])))
+  # median p-values
+  df_medp <- output_chem_k %>% group_by(Readout) %>% summarise_at(shapes, median)
+  df_medp <- df_medp %>% mutate(chemical = substr(output_names[k], 1, 15))
+  final_pvals[[k]] <- df_medp
+  
+  # shape
+  df_shape <- df_medp %>%
+    mutate_at(shapes, function(x){x<0.05})
+  df_shape$shape <- apply(df_shape[, shapes], 1, 
+                          function(x){paste(shapes[x], collapse = "-")})
+  final_shape[[k]] <- df_shape
+  
+}
+
+# table of p values
+df_pvals <- bind_rows(final_pvals) %>%
+  left_join(sample_info, by = "chemical") %>%
+  mutate(Readout=gsub("mixture-","", Readout))
+```
+
+
+```{r}
+# if all median p value already saved as csv
+df_pvals <- read.csv("../Data/allpvals.csv")
+
+# shape label
+shapes <- c("increase", "decrease", "convex", "concave")
+df_shape <- df_pvals %>% mutate_at(shapes, function(x){x<0.05})
+df_shape$shape <- apply(df_shape[, shapes], 1, 
+                          function(x){paste(shapes[x], collapse = "-")})
+# category of shapes
+df_shape <- df_shape %>% mutate(
+  shape2 = fct_collapse(shape,
+                        "Hormetic" = c("decrease-concave", "increase-convex"), 
+                        "Monotone" = c("decrease", "increase"), 
+                        "U shape" = c("convex", "concave"),
+                        "No shape detected" = c(""),
+                        other_level = "Uncertain")) %>% 
+  mutate(shape2 = fct_relevel(shape2, "Hormetic", after = 0)) %>% 
+  mutate(shape2 = fct_relevel(shape2, "No shape detected", after = Inf))
+
+# remove channel 1 and 2
+df_shape <- df_shape %>%
+  filter(!str_ends(Readout, "ch1") & !str_ends(Readout, "ch2")) %>% 
+  arrange(chemical_name) %>% 
+  mutate(chemical = factor(chemical, levels = unique(chemical)))
+# length(unique(df_shape$chemical)) # 90 chemicals
+# length(unique(df_shape$Readout)) # 54 readouts
+
+# add sample info
+df_shape <- df_shape %>% 
+  rename(sample_id = chemical) %>%
+  left_join(sample_info)
+```
+
+
+# Overall summarization
+
+```{r overall_sum, fig.height=20, fig.width=15}
+# counts
+table(df_shape$shape2)
+
+# format so it looks nice
+# plot by chemical names and 
+df_shape %>%
+  # mutate(shape2 = f)
+  ggplot(aes(x=Readout, y = sample_id, fill=shape2))+
+  geom_tile()+
+  # theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 20),
+  #       axis.text.y = element_text(size = 20),
+  #       legend.text = element_text(size = 20),
+  #       legend.title = element_blank(),
+        # legend.position = "top")+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title = element_text(size=20),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 20),
+        legend.position = "top")+
+  scale_x_discrete(breaks = df_shape$chemical, labels = df_shape$sample_name)+
+  labs(x="Readout", y= "Chemical", fill = "Shape")
+```
+
+
+
+```{r, fig.height=8, fig.width=20, eval = FALSE}
+# plot by botanical group
+# selected group
+df_shape %>%
+    filter(botanical_group == "Ginkgo Biloba") %>%
+    ggplot(aes(x=Readout, y = sample_id, fill=shape2))+
+    geom_tile()+
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 20),
+          axis.text = element_text(size = 20),
+          # strip.text.y = element_text(angle = 0, size = 20), 
+          legend.title = element_blank(),
+          legend.text = element_text(size = 20),
+          legend.position = "top")+
+    scale_y_discrete(breaks = df_shape$sample_id, labels = df_shape$sample_name)+
+    scale_fill_manual(values = my_cols)+
+    # facet_grid(rows = vars(botanical_group), scales = "free_y", space = "free_y")+
+    labs(x=" ", y= " ")
+```
+
+
+## Scatterplot example of one assay
+
+```{r scatter_exp, fig.height=8, fig.width=10}
+df_plot <- df_pvals %>% filter(Readout == "are-bla-p1_ratio") %>%
+  rename(sample_id = chemical) %>%
+  left_join(sample_info)
+
+SharpScatter(df_plot$increase, df_plot$decrease, df_plot$concave, df_plot$convex, 
+             col = df_plot$botanical_group)
+```
+
+# Hormesis curves
+
+```{r hormesis_sum,  fig.height=20, fig.width=19}
+# sum(df_shape$shape2=="Hormetic")
+ds_horm <- df_shape %>% 
+  filter(shape2 == "Hormetic") %>% 
+  select(sample_id, sample_name, Readout)
+
+# distinguish two goldenseals
+df_shape %>% 
+  filter(sample_id %in% ds_horm$sample_id & Readout %in% ds_horm$Readout) %>%
+  ggplot(aes(y=sample_name, x=Readout, fill=shape2))+
+  geom_tile()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5),
+        strip.text.y = element_text(angle=0, size = 15))+
+  labs(y="Chemical", x= "Readout", fill = "Shape")+
+  facet_grid(rows = vars(botanical_group), scales="free_y", space = "free_y")
+```
+
+## Table summary by botanical group (chemical) 
+
+```{r}
+# hormesis summary table by chemical groups
+# table(df_shape$shape2)
+df_shape %>% select(botanical_group, sample_name, Readout, shape2) %>% 
+  group_by(botanical_group) %>% 
+  summarise(nhorm = sum(shape2=="Hormetic"),
+            ncurve = n(),
+            pct = round(100*(nhorm/ncurve), 2)) %>%
+  mutate('N (pct)' = paste0(nhorm, " (", pct, "%)")) %>%
+  arrange(desc(nhorm)) %>%
+  select(botanical_group, 'N (pct)') %>%
+  rename("Botanical Group"=botanical_group) %>%
+  kableExtra::kable(align = "lc",
+                    caption = "Number of dose-response curves identified as hormesis, and percentage of hormesis curves out of all dose-reponse curves in each botanical group.") %>% 
+  kableExtra::kable_styling(full_width = F)
+  
+```
+
+## Table summary by assays
+
+```{r}
+# ds_horm %>% distinct(.)
+# correspond each assay with their readouts
+channel_assay_list <- ds_horm %>% 
+  select(Readout) %>%
+  distinct(.) %>%
+  separate(Readout, into = c("Assay", "Channel"), sep = "_", remove = F) %>%
+  group_by(Channel)
+channel_assay_list <- split(channel_assay_list$Assay, f = channel_assay_list$Channel)
+
+df_shape <- df_shape %>% 
+  separate(Readout, into = c("Assay", "Channel"), sep = "_", remove = F)
+```
+
+
+```{r, message=FALSE}
+# luc and viability 
+df_shape %>% group_by(Assay, Channel) %>% 
+  filter(Assay %in% channel_assay_list$luc & Assay %in% channel_assay_list$via) %>%
+  group_by(Assay, Channel) %>%
+  summarise(nhorm = sum(shape2=="Hormetic"),
+            ncurve = n(),
+            pct = round(100*(nhorm/ncurve), 2)) %>%
+  mutate('N (pct)' = paste0(nhorm, " (", pct, "%)")) %>%
+  select(Assay, Channel, 'N (pct)') %>%
+  pivot_wider(id_cols = "Assay", values_from ='N (pct)', names_from = "Channel") %>% 
+  knitr::kable(caption = "Number of dose-response curves identified as hormesis, and percentage of hormesis curves out of all dose-reponse curves of each assay in each channel.") %>%
+  kableExtra::kable_styling(full_width = F)
+  
+```
+```{r, message=FALSE}
+# ratio and viability
+df_shape %>% 
+  filter(Assay %in% channel_assay_list$ratio & Assay %in% channel_assay_list$via) %>%
+  group_by(Assay, Channel) %>%
+  summarise(nhorm = sum(shape2=="Hormetic"),
+            ncurve = n(),
+            pct = round(100*(nhorm/ncurve), 2)) %>%
+  mutate('N (pct)' = paste0(nhorm, " (", pct, "%)")) %>%
+  select(Assay, Channel, 'N (pct)') %>%
+  pivot_wider(id_cols = "Assay", values_from ='N (pct)', names_from = "Channel") %>% 
+  knitr::kable(caption = "Number of dose-response curves identified as hormesis, and percentage of hormesis curves out of all dose-reponse curves of each assay in each channel.") %>%
+  kableExtra::kable_styling(full_width = F)
+```
+
+```{r, message=FALSE}
+# time
+df_shape %>% group_by(Assay, Channel) %>% 
+  filter(Assay %in% channel_assay_list$`0h`) %>%
+  group_by(Assay, Channel) %>%
+  summarise(nhorm = sum(shape2=="Hormetic"),
+            ncurve = n(),
+            pct = round(100*(nhorm/ncurve), 2)) %>%
+  mutate('N (pct)' = paste0(nhorm, " (", pct, "%)")) %>%
+  select(Assay, Channel, 'N (pct)') %>%
+  pivot_wider(id_cols = "Assay", values_from ='N (pct)', names_from = "Channel") %>% 
+  knitr::kable(caption = "Number of dose-response curves identified as hormesis, and percentage of hormesis curves out of all dose-reponse curves of each assay at each time.") %>%
+  kableExtra::kable_styling(full_width = F)
+```
+
+
+## Individual dose-response curves examples
+
+```{r ds_hormesis_exp, fig.height=10, fig.width=15}
+# randomly select 6 pairs
+rid <- sample(1:nrow(ds_horm), size = 15)
+
+curve_list <- list()
+
+for(i in 1:15){
+  r <- rid[i]
+  df_r <- ds_curves[ds_curves$sample_id == ds_horm$sample_id[r] &
+                      ds_curves$readout == ds_horm$Readout[r], ]
+  plot_r <- df_r %>% ggplot(aes(x=concs, y=resps))+
+    geom_point(aes(col=as.factor(batch)), size = 2)+
+    geom_smooth(method = "loess", formula = 'y ~ x', span = 0.5)+
+    labs(x=ds_horm$sample_name[r], y=ds_horm$Readout[r])+
+    theme(legend.position = "none")
+  curve_list[[i]] <- plot_r
+  
+}
+
+hcurves <- do.call(gridExtra::grid.arrange, c(curve_list, ncol = 5, nrow = 3))
+# ggsave(filename = "Images/HormesisCurves.jpeg", hcurves, height = 10, width = 15)
+```
+
+
+
+# Specific assay and chemicals as examples
+
+```{r chem_exp}
+exp_chem <- sample_info$sample_id[sample_info$sample_name=="Turmeric (lot 90H73)"]
+exp_assay <- c("ar-mda-kb2-luc-antagonist-p1_luc", "are-bla-p1_ratio", "rt-viability-hek293-flor-p1_40h", 
+               "rt-viability-hek293-flor-p1_8h")
+
+ds_curves %>% 
+  filter(sample_id==exp_chem & readout %in% exp_assay) %>%
+  ggplot(aes(x=concs, y=resps))+
+    geom_point(aes(col=as.factor(batch)), size = 2)+
+    geom_smooth(method = "loess", formula = 'y ~ x', span = 0.5)+
+    labs(x="Turmeric (lot 90H73)", y="")+
+    theme(legend.position = "none")+
+  facet_wrap(~readout, scales="free_y")
+  
+
+```
+
+
+```{r assay_exp}
+exp_chem <- c("Ginkgo Biloba Extract (lot 020703)", "Ginkgo Biloba Extract (lot 001003)",
+              "Quercetin (lot 969-0483-18BL)", "Quercetin (lot 049K1532)")
+exp_assay <- "are-bla-p1_ratio"
+
+ds_curves %>% 
+  filter(readout==exp_assay) %>%
+  filter(sample_id %in% unique(sample_info$sample_id[sample_info$sample_name %in% exp_chem])) %>%
+  left_join(sample_info[ ,c("sample_id", "sample_name")]) %>%
+  ggplot(aes(x=concs, y=resps))+
+    geom_point(aes(col=as.factor(batch)), size = 2)+
+    geom_smooth(method = "loess", formula = 'y ~ x', span = 0.5)+
+    labs(x=" ", y="are-bla-p1_ratio")+
+    theme(legend.position = "none")+
+  facet_wrap(~sample_name, scales="free")
+  
+
+```
