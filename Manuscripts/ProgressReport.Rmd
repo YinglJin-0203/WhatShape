@@ -341,3 +341,28 @@ ds_curves %>%
   
 
 ```
+
+# Output from voting mechanism
+
+## Scatter plots for p values
+```{r, fig.height=6, fig.width=10}
+output_names <- list.files("../Data/VoteOutput")
+
+# random select one chemical
+chem <- sample(output_names, 1)
+load(paste0("../Data/VoteOutput/", chem))
+
+df_plot <- output_chem_k %>%
+  filter(!str_ends(Readout, "ch1") & !str_ends(Readout, "ch2"))
+# length(unique(df_plot$Readout))
+# table(df_plot$Readout)
+
+# select a subset of readouts
+select_out <- sample(unique(df_plot$Readout), 10)
+df_plot <- df_plot %>% filter(Readout %in% select_out)
+
+SharpScatter(df_plot$increase, df_plot$decrease,
+             df_plot$concave,df_plot$convex, 
+             col = df_plot$Readout, size_point = 0.5)
+ggsave("../Manuscripts/ReportFigs/rep_pvals_scatter.jpeg", height = 6, width = 10)
+```

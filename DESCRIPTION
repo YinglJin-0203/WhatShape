@@ -1,5 +1,5 @@
-Package: WhatShape
-Title: Detect the shape of dose-response curves
+Package: shorm
+Title: SHARP Test for Hormesis
 Version: 0.0.0.9000
 Authors@R: 
     person("Ying", "Jin", , "ying.jin@nih.gov", role = c("aut", "cre"))
