@@ -364,5 +364,26 @@ df_plot <- df_plot %>% filter(Readout %in% select_out)
 SharpScatter(df_plot$increase, df_plot$decrease,
              df_plot$concave,df_plot$convex, 
              col = df_plot$Readout, size_point = 0.5)
-ggsave("../Manuscripts/ReportFigs/rep_pvals_scatter.jpeg", height = 6, width = 10)
+# ggsave("../Manuscripts/ReportFigs/rep_pvals_scatter.jpeg", height = 6, width = 10)
+```
+
+```{r compare}
+pvals_out <- df_shape %>% select(sample_id, Readout, shape2) %>% 
+  rename(shape_label = shape2, readout=Readout) %>% 
+  mutate(shape_label = as.character(shape_label))
+# class(pvals_out$shape_label)
+# table(pvals_out$shape_label)
+# table(vote_out$shape_label)
+
+pvals_out$shape_label[pvals_out$shape_label=="Hormetic"] <- "Hormesis"
+
+df_shape_vote <- read.csv("../Data/AllShapeVote.csv")
+vote_out <- df_shape_vote %>% select(sample_id, readout, shape_label)
+vote_out$readout <- gsub("mixture-","", vote_out$readout)
+
+anti_join(pvals_out, vote_out) %>% 
+  left_join(vote_out, by = c("sample_id", "readout")) %>%
+  rename(median = shape_label.x,
+         vote = shape_label.y) %>%
+  select(median, vote) %>% table()
 ```
