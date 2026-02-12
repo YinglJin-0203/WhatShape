@@ -1,7 +1,7 @@
 ---
 title: "Repeated SHARP Shape Detection"
 author: "Ying Jin"
-date: "2026-02-05"
+date: "2026-02-12"
 output: 
   html_document:
     number_section: true
@@ -10,6 +10,12 @@ output:
     keep_md: true
 ---
 
+
+
+
+# Raw curves 
+
+![](ReportFigs/exp_raw_curves-1.jpeg)<!-- -->
 
 
 
@@ -319,3 +325,23 @@ output:
 ```
 
 ![](ReportFigs/assay_exp-1.jpeg)<!-- -->
+
+# Output from voting mechanism
+
+## Scatter plots for p values
+![](ReportFigs/unnamed-chunk-9-1.jpeg)<!-- -->
+
+
+```
+## Joining with `by = join_by(sample_id, readout, shape_label)`
+```
+
+```
+##                    vote
+## median              Hormesis Monotone No shape detected U shape Uncertain
+##   Hormesis                 0        0                 0       3         0
+##   Monotone                 0        0                 3       0         0
+##   No shape detected        0        4                 0       5         0
+##   U shape                  2        0                 3       0         2
+##   Uncertain                0        1                 0       0         0
+```
